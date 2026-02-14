@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -13,7 +13,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Plus, Search, ListChecks, Filter } from "lucide-react";
+import { Plus, Search, ListChecks, Filter, CalendarDays } from "lucide-react";
+import { format, isToday, isTomorrow, isPast, startOfDay, parseISO } from "date-fns";
 import type { Chore, Partner, Room } from "@shared/schema";
 import { CATEGORIES } from "@shared/schema";
 import { ChoreCard } from "@/components/chore-card";
@@ -69,6 +70,57 @@ export default function ChoresPage() {
 
   const filteredActive = filterChores(activeChores);
   const filteredCompleted = filterChores(completedChores);
+
+  const groupByDate = (list: Chore[]) => {
+    const groups: Record<string, Chore[]> = {};
+    const sorted = [...list].sort((a, b) => {
+      if (!a.dueDate && !b.dueDate) return 0;
+      if (!a.dueDate) return 1;
+      if (!b.dueDate) return -1;
+      return new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime();
+    });
+
+    for (const chore of sorted) {
+      let key: string;
+      if (!chore.dueDate) {
+        key = "No Due Date";
+      } else {
+        const raw = String(chore.dueDate).split("T")[0].split(" ")[0];
+        const date = new Date(raw + "T00:00:00");
+        if (isToday(date)) {
+          key = "Today";
+        } else if (isTomorrow(date)) {
+          key = "Tomorrow";
+        } else if (isPast(date)) {
+          key = "Overdue";
+        } else {
+          key = format(date, "EEEE, MMM d");
+        }
+      }
+      if (!groups[key]) groups[key] = [];
+      groups[key].push(chore);
+    }
+    return groups;
+  };
+
+  const activeGroups = useMemo(() => groupByDate(filteredActive), [filteredActive]);
+  const completedGroups = useMemo(() => groupByDate(filteredCompleted), [filteredCompleted]);
+
+  const dateGroupOrder = (key: string) => {
+    if (key === "Overdue") return -1;
+    if (key === "Today") return 0;
+    if (key === "Tomorrow") return 1;
+    if (key === "No Due Date") return Infinity;
+    return 2;
+  };
+
+  const sortedGroupKeys = (groups: Record<string, Chore[]>) =>
+    Object.keys(groups).sort((a, b) => {
+      const oa = dateGroupOrder(a);
+      const ob = dateGroupOrder(b);
+      if (oa !== ob) return oa - ob;
+      return 0;
+    });
 
   if (isLoading) {
     return (
@@ -169,18 +221,33 @@ export default function ChoresPage() {
               </CardContent>
             </Card>
           ) : (
-            <div className="grid gap-3 sm:grid-cols-2">
-              {filteredActive.map((chore) => (
-                <ChoreCard
-                  key={chore.id}
-                  chore={chore}
-                  partner={getPartner(chore.assigneeId)}
-                  room={getRoom(chore.roomId)}
-                  onEdit={(c) => {
-                    setEditChore(c);
-                    setDialogOpen(true);
-                  }}
-                />
+            <div className="space-y-6">
+              {sortedGroupKeys(activeGroups).map((dateKey) => (
+                <div key={dateKey} data-testid={`date-group-${dateKey.toLowerCase().replace(/[^a-z0-9]/g, "-")}`}>
+                  <div className="flex items-center gap-2 mb-3">
+                    <CalendarDays className={`w-4 h-4 ${dateKey === "Overdue" ? "text-destructive" : "text-muted-foreground"}`} />
+                    <h3 className={`text-sm font-semibold ${dateKey === "Overdue" ? "text-destructive" : "text-muted-foreground"}`} data-testid={`text-date-header-${dateKey.toLowerCase().replace(/[^a-z0-9]/g, "-")}`}>
+                      {dateKey}
+                    </h3>
+                    <Badge variant="secondary" className="text-xs">
+                      {activeGroups[dateKey].length}
+                    </Badge>
+                  </div>
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    {activeGroups[dateKey].map((chore) => (
+                      <ChoreCard
+                        key={chore.id}
+                        chore={chore}
+                        partner={getPartner(chore.assigneeId)}
+                        room={getRoom(chore.roomId)}
+                        onEdit={(c) => {
+                          setEditChore(c);
+                          setDialogOpen(true);
+                        }}
+                      />
+                    ))}
+                  </div>
+                </div>
               ))}
             </div>
           )}
@@ -196,18 +263,33 @@ export default function ChoresPage() {
               </CardContent>
             </Card>
           ) : (
-            <div className="grid gap-3 sm:grid-cols-2">
-              {filteredCompleted.map((chore) => (
-                <ChoreCard
-                  key={chore.id}
-                  chore={chore}
-                  partner={getPartner(chore.assigneeId)}
-                  room={getRoom(chore.roomId)}
-                  onEdit={(c) => {
-                    setEditChore(c);
-                    setDialogOpen(true);
-                  }}
-                />
+            <div className="space-y-6">
+              {sortedGroupKeys(completedGroups).map((dateKey) => (
+                <div key={dateKey}>
+                  <div className="flex items-center gap-2 mb-3">
+                    <CalendarDays className="w-4 h-4 text-muted-foreground" />
+                    <h3 className="text-sm font-semibold text-muted-foreground">
+                      {dateKey}
+                    </h3>
+                    <Badge variant="secondary" className="text-xs">
+                      {completedGroups[dateKey].length}
+                    </Badge>
+                  </div>
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    {completedGroups[dateKey].map((chore) => (
+                      <ChoreCard
+                        key={chore.id}
+                        chore={chore}
+                        partner={getPartner(chore.assigneeId)}
+                        room={getRoom(chore.roomId)}
+                        onEdit={(c) => {
+                          setEditChore(c);
+                          setDialogOpen(true);
+                        }}
+                      />
+                    ))}
+                  </div>
+                </div>
               ))}
             </div>
           )}
