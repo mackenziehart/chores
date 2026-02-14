@@ -14,6 +14,17 @@ export const insertPartnerSchema = createInsertSchema(partners).omit({ id: true 
 export type InsertPartner = z.infer<typeof insertPartnerSchema>;
 export type Partner = typeof partners.$inferSelect;
 
+export const rooms = pgTable("rooms", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: text("name").notNull(),
+  icon: text("icon").notNull().default("home"),
+  sortOrder: integer("sort_order").notNull().default(0),
+});
+
+export const insertRoomSchema = createInsertSchema(rooms).omit({ id: true });
+export type InsertRoom = z.infer<typeof insertRoomSchema>;
+export type Room = typeof rooms.$inferSelect;
+
 export const chores = pgTable("chores", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   title: text("title").notNull(),
@@ -26,6 +37,7 @@ export const chores = pgTable("chores", {
   recurrence: text("recurrence"),
   category: text("category").notNull().default("general"),
   priority: text("priority").notNull().default("medium"),
+  roomId: varchar("room_id"),
   createdAt: timestamp("created_at").notNull().default(sql`now()`),
 });
 
@@ -81,3 +93,19 @@ export const CATEGORIES = [
 
 export const PRIORITIES = ["low", "medium", "high"] as const;
 export const RECURRENCES = ["daily", "weekly", "biweekly", "monthly"] as const;
+
+export const DEFAULT_ROOMS = [
+  { name: "Living Room", icon: "sofa" },
+  { name: "Kitchen", icon: "cooking-pot" },
+  { name: "Bathroom", icon: "bath" },
+  { name: "Master Bedroom", icon: "bed-double" },
+  { name: "Guest Bedroom", icon: "bed-single" },
+  { name: "Garage", icon: "warehouse" },
+  { name: "Yard", icon: "trees" },
+] as const;
+
+export const ROOM_ICONS = [
+  "home", "sofa", "cooking-pot", "bath", "bed-double", "bed-single",
+  "warehouse", "trees", "washing-machine", "tv", "lamp", "door-open",
+  "utensils", "shirt", "baby", "briefcase", "car", "dog",
+] as const;

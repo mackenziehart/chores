@@ -14,7 +14,7 @@ import {
 } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Plus, Search, ListChecks, Filter } from "lucide-react";
-import type { Chore, Partner } from "@shared/schema";
+import type { Chore, Partner, Room } from "@shared/schema";
 import { CATEGORIES } from "@shared/schema";
 import { ChoreCard } from "@/components/chore-card";
 import { ChoreFormDialog } from "@/components/chore-form-dialog";
@@ -34,7 +34,12 @@ export default function ChoresPage() {
     queryKey: ["/api/partners"],
   });
 
+  const { data: roomsList } = useQuery<Room[]>({
+    queryKey: ["/api/rooms"],
+  });
+
   const getPartner = (id: string | null) => partners?.find((p) => p.id === id);
+  const getRoom = (id: string | null) => roomsList?.find((r) => r.id === id);
 
   const activeChores = chores?.filter((c) => !c.completed) || [];
   const completedChores = chores?.filter((c) => c.completed) || [];
@@ -170,6 +175,7 @@ export default function ChoresPage() {
                   key={chore.id}
                   chore={chore}
                   partner={getPartner(chore.assigneeId)}
+                  room={getRoom(chore.roomId)}
                   onEdit={(c) => {
                     setEditChore(c);
                     setDialogOpen(true);
@@ -196,6 +202,7 @@ export default function ChoresPage() {
                   key={chore.id}
                   chore={chore}
                   partner={getPartner(chore.assigneeId)}
+                  room={getRoom(chore.roomId)}
                   onEdit={(c) => {
                     setEditChore(c);
                     setDialogOpen(true);

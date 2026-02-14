@@ -4,6 +4,7 @@
 A warm, inviting web app for couples to share and manage household chores together. Features include chore creation/editing, partner assignment, recurring chores, due dates, history tracking, email reminders via Resend, and a customizable color theme palette.
 
 ## Recent Changes
+- 2026-02-14: Added rooms feature - room-based chore organization, collapsible room sections on dashboard, room management in settings
 - 2026-02-14: Initial MVP build - schema, frontend, backend, Resend email integration
 
 ## Architecture
@@ -15,7 +16,7 @@ A warm, inviting web app for couples to share and manage household chores togeth
 - **Theme**: Dynamic color customization via CSS custom properties
 
 ## Project Structure
-- `shared/schema.ts` - Data models (partners, chores, choreHistory, settings)
+- `shared/schema.ts` - Data models (partners, chores, rooms, choreHistory, settings)
 - `server/db.ts` - Database connection
 - `server/storage.ts` - Storage interface (DatabaseStorage)
 - `server/routes.ts` - API endpoints
@@ -33,5 +34,7 @@ A warm, inviting web app for couples to share and manage household chores togeth
 - Recurring chores (daily/weekly/biweekly/monthly) with auto-regeneration
 - Chore history tracking
 - Email reminders via Resend (checks hourly for chores due tomorrow)
+- Room-based chore organization with collapsible sections on dashboard
+- Customizable rooms (add/edit/delete) in settings with default room presets
 - Customizable color palette with presets
 - Dark/light mode toggle

@@ -1,7 +1,7 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import { insertChoreSchema, insertPartnerSchema } from "@shared/schema";
+import { insertChoreSchema, insertPartnerSchema, insertRoomSchema } from "@shared/schema";
 import { checkAndSendReminders } from "./email";
 
 export async function registerRoutes(
@@ -35,6 +35,32 @@ export async function registerRoutes(
     res.json({ success: true });
   });
 
+  // Rooms
+  app.get("/api/rooms", async (_req, res) => {
+    const roomsList = await storage.getRooms();
+    res.json(roomsList);
+  });
+
+  app.post("/api/rooms", async (req, res) => {
+    const parsed = insertRoomSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({ message: parsed.error.message });
+    }
+    const room = await storage.createRoom(parsed.data);
+    res.json(room);
+  });
+
+  app.patch("/api/rooms/:id", async (req, res) => {
+    const room = await storage.updateRoom(req.params.id, req.body);
+    if (!room) return res.status(404).json({ message: "Room not found" });
+    res.json(room);
+  });
+
+  app.delete("/api/rooms/:id", async (req, res) => {
+    await storage.deleteRoom(req.params.id);
+    res.json({ success: true });
+  });
+
   // Chores
   app.get("/api/chores", async (_req, res) => {
     const chores = await storage.getChores();
@@ -45,6 +71,7 @@ export async function registerRoutes(
     const body = {
       ...req.body,
       dueDate: req.body.dueDate ? new Date(req.body.dueDate) : null,
+      roomId: req.body.roomId || null,
     };
     const parsed = insertChoreSchema.safeParse(body);
     if (!parsed.success) {
@@ -59,6 +86,9 @@ export async function registerRoutes(
       ...req.body,
       dueDate: req.body.dueDate ? new Date(req.body.dueDate) : null,
     };
+    if ("roomId" in req.body) {
+      body.roomId = req.body.roomId || null;
+    }
     const chore = await storage.updateChore(req.params.id, body);
     if (!chore) return res.status(404).json({ message: "Chore not found" });
     res.json(chore);

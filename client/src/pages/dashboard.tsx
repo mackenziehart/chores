@@ -1,12 +1,17 @@
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { CheckCircle2, Clock, AlertTriangle, ListChecks, Plus, ArrowRight } from "lucide-react";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
+import { CheckCircle2, Clock, AlertTriangle, ListChecks, Plus, ArrowRight, ChevronDown, ChevronRight, Home } from "lucide-react";
 import { Link } from "wouter";
-import type { Chore, Partner } from "@shared/schema";
-import { format, isPast, isToday, isTomorrow } from "date-fns";
+import type { Chore, Partner, Room } from "@shared/schema";
+import { isPast, isToday } from "date-fns";
 import { ChoreCard } from "@/components/chore-card";
 
 function StatCard({
@@ -44,6 +49,59 @@ function StatCard({
   );
 }
 
+function RoomSection({
+  roomName,
+  roomChores,
+  getPartner,
+  getRoom,
+  defaultOpen = true,
+  testId,
+}: {
+  roomName: string;
+  roomChores: Chore[];
+  getPartner: (id: string | null) => Partner | undefined;
+  getRoom: (id: string | null) => Room | undefined;
+  defaultOpen?: boolean;
+  testId: string;
+}) {
+  const [open, setOpen] = useState(defaultOpen);
+  const activeCount = roomChores.filter((c) => !c.completed).length;
+
+  return (
+    <Collapsible open={open} onOpenChange={setOpen}>
+      <CollapsibleTrigger asChild>
+        <button
+          className="flex items-center gap-2 w-full text-left py-2 group"
+          data-testid={`button-toggle-room-${testId}`}
+        >
+          {open ? (
+            <ChevronDown className="w-4 h-4 text-muted-foreground shrink-0" />
+          ) : (
+            <ChevronRight className="w-4 h-4 text-muted-foreground shrink-0" />
+          )}
+          <Home className="w-4 h-4 text-primary shrink-0" />
+          <span className="font-semibold">{roomName}</span>
+          <span className="text-xs text-muted-foreground ml-1">
+            {activeCount} active
+          </span>
+        </button>
+      </CollapsibleTrigger>
+      <CollapsibleContent>
+        <div className="grid gap-3 sm:grid-cols-2 mt-2 mb-4">
+          {roomChores.map((chore) => (
+            <ChoreCard
+              key={chore.id}
+              chore={chore}
+              partner={getPartner(chore.assigneeId)}
+              room={getRoom(chore.roomId)}
+            />
+          ))}
+        </div>
+      </CollapsibleContent>
+    </Collapsible>
+  );
+}
+
 export default function Dashboard() {
   const { data: chores, isLoading: choresLoading } = useQuery<Chore[]>({
     queryKey: ["/api/chores"],
@@ -53,7 +111,11 @@ export default function Dashboard() {
     queryKey: ["/api/partners"],
   });
 
-  const isLoading = choresLoading || partnersLoading;
+  const { data: roomsList, isLoading: roomsLoading } = useQuery<Room[]>({
+    queryKey: ["/api/rooms"],
+  });
+
+  const isLoading = choresLoading || partnersLoading || roomsLoading;
 
   const activeChores = chores?.filter((c) => !c.completed) || [];
   const completedToday =
@@ -70,6 +132,26 @@ export default function Dashboard() {
 
   const getPartner = (id: string | null) =>
     partners?.find((p) => p.id === id);
+  const getRoom = (id: string | null) =>
+    roomsList?.find((r) => r.id === id);
+
+  const hasRooms = roomsList && roomsList.length > 0;
+
+  const choresByRoom = (() => {
+    if (!hasRooms) return [];
+    const groups: { room: Room; chores: Chore[] }[] = [];
+    for (const room of roomsList!) {
+      const roomChores = activeChores.filter((c) => c.roomId === room.id);
+      if (roomChores.length > 0) {
+        groups.push({ room, chores: roomChores });
+      }
+    }
+    return groups;
+  })();
+
+  const unassignedRoomChores = hasRooms
+    ? activeChores.filter((c) => !c.roomId)
+    : [];
 
   if (isLoading) {
     return (
@@ -89,7 +171,7 @@ export default function Dashboard() {
     <div className="p-6 space-y-6 max-w-5xl mx-auto">
       <div className="flex items-center justify-between gap-4 flex-wrap">
         <div>
-          <h1 className="text-2xl font-bold">Dashboard</h1>
+          <h1 className="text-2xl font-bold" data-testid="text-dashboard-title">Dashboard</h1>
           <p className="text-muted-foreground text-sm mt-1">
             Your household at a glance
           </p>
@@ -143,6 +225,7 @@ export default function Dashboard() {
                 key={chore.id}
                 chore={chore}
                 partner={getPartner(chore.assigneeId)}
+                room={getRoom(chore.roomId)}
                 variant="overdue"
               />
             ))}
@@ -150,42 +233,83 @@ export default function Dashboard() {
         </div>
       )}
 
-      <div>
-        <div className="flex items-center justify-between gap-2 mb-3 flex-wrap">
-          <h2 className="font-semibold">Upcoming Chores</h2>
-          <Link href="/chores">
-            <Button variant="ghost" size="sm" data-testid="link-view-all-chores">
-              View all
-              <ArrowRight className="w-4 h-4 ml-1" />
-            </Button>
-          </Link>
-        </div>
-        {upcomingChores.length === 0 ? (
-          <Card>
-            <CardContent className="p-8 text-center">
-              <Clock className="w-10 h-10 mx-auto text-muted-foreground mb-3" />
-              <p className="text-muted-foreground">
-                No upcoming chores with due dates.
-              </p>
-              <Link href="/chores">
-                <Button variant="outline" className="mt-4" data-testid="button-add-first-chore">
-                  Add your first chore
-                </Button>
-              </Link>
-            </CardContent>
-          </Card>
-        ) : (
-          <div className="grid gap-3 sm:grid-cols-2">
-            {upcomingChores.map((chore) => (
-              <ChoreCard
-                key={chore.id}
-                chore={chore}
-                partner={getPartner(chore.assigneeId)}
+      {hasRooms && (choresByRoom.length > 0 || unassignedRoomChores.length > 0) && (
+        <div>
+          <div className="flex items-center justify-between gap-2 mb-3 flex-wrap">
+            <h2 className="font-semibold" data-testid="text-rooms-heading">By Room</h2>
+            <Link href="/chores">
+              <Button variant="ghost" size="sm" data-testid="link-view-all-chores-rooms">
+                View all
+                <ArrowRight className="w-4 h-4 ml-1" />
+              </Button>
+            </Link>
+          </div>
+
+          <div className="space-y-1">
+            {choresByRoom.map(({ room, chores: roomChores }) => (
+              <RoomSection
+                key={room.id}
+                roomName={room.name}
+                roomChores={roomChores}
+                getPartner={getPartner}
+                getRoom={getRoom}
+                testId={room.id}
               />
             ))}
+
+            {unassignedRoomChores.length > 0 && (
+              <RoomSection
+                roomName="Other"
+                roomChores={unassignedRoomChores}
+                getPartner={getPartner}
+                getRoom={getRoom}
+                defaultOpen={false}
+                testId="unassigned"
+              />
+            )}
           </div>
-        )}
-      </div>
+        </div>
+      )}
+
+      {!hasRooms && (
+        <div>
+          <div className="flex items-center justify-between gap-2 mb-3 flex-wrap">
+            <h2 className="font-semibold">Upcoming Chores</h2>
+            <Link href="/chores">
+              <Button variant="ghost" size="sm" data-testid="link-view-all-chores">
+                View all
+                <ArrowRight className="w-4 h-4 ml-1" />
+              </Button>
+            </Link>
+          </div>
+          {upcomingChores.length === 0 ? (
+            <Card>
+              <CardContent className="p-8 text-center">
+                <Clock className="w-10 h-10 mx-auto text-muted-foreground mb-3" />
+                <p className="text-muted-foreground">
+                  No upcoming chores with due dates.
+                </p>
+                <Link href="/chores">
+                  <Button variant="outline" className="mt-4" data-testid="button-add-first-chore">
+                    Add your first chore
+                  </Button>
+                </Link>
+              </CardContent>
+            </Card>
+          ) : (
+            <div className="grid gap-3 sm:grid-cols-2">
+              {upcomingChores.map((chore) => (
+                <ChoreCard
+                  key={chore.id}
+                  chore={chore}
+                  partner={getPartner(chore.assigneeId)}
+                  room={getRoom(chore.roomId)}
+                />
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       {partners && partners.length >= 2 && (
         <div>

@@ -1,11 +1,12 @@
-import { eq, desc } from "drizzle-orm";
+import { eq, desc, asc } from "drizzle-orm";
 import { db } from "./db";
 import {
-  partners, chores, choreHistory, settings,
+  partners, chores, choreHistory, settings, rooms,
   type Partner, type InsertPartner,
   type Chore, type InsertChore,
   type ChoreHistory, type InsertChoreHistory,
   type Settings, type InsertSettings,
+  type Room, type InsertRoom,
 } from "@shared/schema";
 
 export interface IStorage {
@@ -27,6 +28,12 @@ export interface IStorage {
 
   getSettings(): Promise<Settings>;
   updateSettings(data: Partial<InsertSettings>): Promise<Settings>;
+
+  getRooms(): Promise<Room[]>;
+  getRoom(id: string): Promise<Room | undefined>;
+  createRoom(data: InsertRoom): Promise<Room>;
+  updateRoom(id: string, data: Partial<InsertRoom>): Promise<Room | undefined>;
+  deleteRoom(id: string): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -103,7 +110,8 @@ export class DatabaseStorage implements IStorage {
           category: chore.category,
           priority: chore.priority,
           recurrence: chore.recurrence,
-          dueDate: nextDue ? nextDue.toISOString() : null,
+          roomId: chore.roomId,
+          dueDate: nextDue || null,
           completed: false,
         });
       }
@@ -162,6 +170,31 @@ export class DatabaseStorage implements IStorage {
       .where(eq(settings.id, "default"))
       .returning();
     return updated;
+  }
+
+  async getRooms(): Promise<Room[]> {
+    return db.select().from(rooms).orderBy(asc(rooms.sortOrder), asc(rooms.name));
+  }
+
+  async getRoom(id: string): Promise<Room | undefined> {
+    const [room] = await db.select().from(rooms).where(eq(rooms.id, id));
+    return room;
+  }
+
+  async createRoom(data: InsertRoom): Promise<Room> {
+    const existing = await this.getRooms();
+    const [room] = await db.insert(rooms).values({ ...data, sortOrder: data.sortOrder ?? existing.length }).returning();
+    return room;
+  }
+
+  async updateRoom(id: string, data: Partial<InsertRoom>): Promise<Room | undefined> {
+    const [room] = await db.update(rooms).set(data).where(eq(rooms.id, id)).returning();
+    return room;
+  }
+
+  async deleteRoom(id: string): Promise<void> {
+    await db.update(chores).set({ roomId: null }).where(eq(chores.roomId, id));
+    await db.delete(rooms).where(eq(rooms.id, id));
   }
 }
 

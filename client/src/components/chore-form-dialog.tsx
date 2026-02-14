@@ -33,7 +33,7 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { CATEGORIES, PRIORITIES, RECURRENCES } from "@shared/schema";
-import type { Chore, Partner } from "@shared/schema";
+import type { Chore, Partner, Room } from "@shared/schema";
 import { cn } from "@/lib/utils";
 
 const choreFormSchema = z.object({
@@ -44,6 +44,7 @@ const choreFormSchema = z.object({
   recurrence: z.string().nullable().optional(),
   category: z.string(),
   priority: z.string(),
+  roomId: z.string().nullable().optional(),
   completed: z.boolean(),
 });
 
@@ -58,6 +59,7 @@ interface ChoreFormDialogProps {
 export function ChoreFormDialog({ open, onOpenChange, editChore }: ChoreFormDialogProps) {
   const { toast } = useToast();
   const { data: partners } = useQuery<Partner[]>({ queryKey: ["/api/partners"] });
+  const { data: roomsList } = useQuery<Room[]>({ queryKey: ["/api/rooms"] });
 
   const form = useForm<ChoreFormValues>({
     resolver: zodResolver(choreFormSchema),
@@ -69,6 +71,7 @@ export function ChoreFormDialog({ open, onOpenChange, editChore }: ChoreFormDial
       recurrence: null,
       category: "general",
       priority: "medium",
+      roomId: null,
       completed: false,
     },
     values: editChore
@@ -80,6 +83,7 @@ export function ChoreFormDialog({ open, onOpenChange, editChore }: ChoreFormDial
           recurrence: editChore.recurrence || null,
           category: editChore.category,
           priority: editChore.priority,
+          roomId: editChore.roomId || null,
           completed: editChore.completed,
         }
       : undefined,
@@ -92,6 +96,7 @@ export function ChoreFormDialog({ open, onOpenChange, editChore }: ChoreFormDial
         dueDate: values.dueDate ? values.dueDate.toISOString() : null,
         assigneeId: values.assigneeId || null,
         recurrence: values.recurrence || null,
+        roomId: values.roomId || null,
       };
       await apiRequest("POST", "/api/chores", body);
     },
@@ -113,6 +118,7 @@ export function ChoreFormDialog({ open, onOpenChange, editChore }: ChoreFormDial
         dueDate: values.dueDate ? values.dueDate.toISOString() : null,
         assigneeId: values.assigneeId || null,
         recurrence: values.recurrence || null,
+        roomId: values.roomId || null,
       };
       await apiRequest("PATCH", `/api/chores/${editChore!.id}`, body);
     },
@@ -265,6 +271,36 @@ export function ChoreFormDialog({ open, onOpenChange, editChore }: ChoreFormDial
                 </FormItem>
               )}
             />
+
+            {roomsList && roomsList.length > 0 && (
+              <FormField
+                control={form.control}
+                name="roomId"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Room</FormLabel>
+                    <Select
+                      onValueChange={(v) => field.onChange(v === "none" ? null : v)}
+                      value={field.value || "none"}
+                    >
+                      <FormControl>
+                        <SelectTrigger data-testid="select-room">
+                          <SelectValue placeholder="No room" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        <SelectItem value="none">No room</SelectItem>
+                        {roomsList.map((r) => (
+                          <SelectItem key={r.id} value={r.id}>
+                            {r.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </FormItem>
+                )}
+              />
+            )}
 
             <FormField
               control={form.control}

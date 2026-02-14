@@ -7,11 +7,19 @@ import { Label } from "@/components/ui/label";
 import { Slider } from "@/components/ui/slider";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Separator } from "@/components/ui/separator";
-import { Palette, Users, Mail, Trash2, Plus, Save } from "lucide-react";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Palette, Users, Mail, Trash2, Plus, Save, Home, GripVertical } from "lucide-react";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useTheme } from "@/lib/theme";
-import type { Partner, Settings } from "@shared/schema";
+import { DEFAULT_ROOMS, ROOM_ICONS } from "@shared/schema";
+import type { Partner, Settings, Room } from "@shared/schema";
 
 const PRESET_COLORS = [
   { name: "Rose", primary: 345, accent: 24 },
@@ -112,13 +120,115 @@ function PartnerEditor({ partner, onSave, onDelete }: {
   );
 }
 
+function RoomEditor({ room, onSave, onDelete }: {
+  room: Room;
+  onSave: (data: { name: string; icon: string }) => void;
+  onDelete: () => void;
+}) {
+  const [name, setName] = useState(room.name);
+  const [icon, setIcon] = useState(room.icon);
+  const [editing, setEditing] = useState(false);
+
+  useEffect(() => {
+    setName(room.name);
+    setIcon(room.icon);
+  }, [room]);
+
+  if (!editing) {
+    return (
+      <div className="flex items-center gap-3 py-2">
+        <Home className="w-4 h-4 text-muted-foreground shrink-0" />
+        <span className="flex-1 font-medium" data-testid={`text-room-name-${room.id}`}>{room.name}</span>
+        <div className="flex items-center gap-1">
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={() => setEditing(true)}
+            data-testid={`button-edit-room-${room.id}`}
+          >
+            Edit
+          </Button>
+          <Button
+            size="icon"
+            variant="ghost"
+            onClick={onDelete}
+            data-testid={`button-delete-room-${room.id}`}
+          >
+            <Trash2 className="w-3.5 h-3.5 text-muted-foreground" />
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-3 py-2">
+      <div className="flex items-center gap-2">
+        <Input
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          placeholder="Room name"
+          className="flex-1"
+          data-testid={`input-room-name-${room.id}`}
+        />
+        <Select value={icon} onValueChange={setIcon}>
+          <SelectTrigger className="w-[140px]" data-testid={`select-room-icon-${room.id}`}>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {ROOM_ICONS.map((ic) => (
+              <SelectItem key={ic} value={ic} className="capitalize">
+                {ic.replace(/-/g, " ")}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+      <div className="flex items-center gap-2">
+        <Button
+          size="sm"
+          onClick={() => {
+            if (name.trim()) {
+              onSave({ name: name.trim(), icon });
+              setEditing(false);
+            }
+          }}
+          disabled={!name.trim()}
+          data-testid={`button-save-room-${room.id}`}
+        >
+          <Save className="w-3.5 h-3.5 mr-1" />
+          Save
+        </Button>
+        <Button
+          size="sm"
+          variant="ghost"
+          onClick={() => {
+            setName(room.name);
+            setIcon(room.icon);
+            setEditing(false);
+          }}
+        >
+          Cancel
+        </Button>
+      </div>
+    </div>
+  );
+}
+
 export default function SettingsPage() {
   const { toast } = useToast();
   const { primaryHue, accentHue, setPrimaryHue, setAccentHue } = useTheme();
   const [showNewPartner, setShowNewPartner] = useState(false);
+  const [newRoomName, setNewRoomName] = useState("");
+  const [newRoomIcon, setNewRoomIcon] = useState("home");
+  const [showNewRoom, setShowNewRoom] = useState(false);
 
   const { data: partners, isLoading: partnersLoading } = useQuery<Partner[]>({
     queryKey: ["/api/partners"],
+  });
+
+  const { data: roomsList, isLoading: roomsLoading } = useQuery<Room[]>({
+    queryKey: ["/api/rooms"],
   });
 
   const createPartnerMutation = useMutation({
@@ -161,13 +271,62 @@ export default function SettingsPage() {
     },
   });
 
+  const createRoomMutation = useMutation({
+    mutationFn: async (data: { name: string; icon: string }) => {
+      await apiRequest("POST", "/api/rooms", data);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/rooms"] });
+      toast({ title: "Room added!" });
+      setNewRoomName("");
+      setNewRoomIcon("home");
+      setShowNewRoom(false);
+    },
+  });
+
+  const updateRoomMutation = useMutation({
+    mutationFn: async ({ id, ...data }: { id: string; name: string; icon: string }) => {
+      await apiRequest("PATCH", `/api/rooms/${id}`, data);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/rooms"] });
+      toast({ title: "Room updated!" });
+    },
+  });
+
+  const deleteRoomMutation = useMutation({
+    mutationFn: async (id: string) => {
+      await apiRequest("DELETE", `/api/rooms/${id}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/rooms"] });
+      toast({ title: "Room removed" });
+    },
+  });
+
+  const addDefaultRoomsMutation = useMutation({
+    mutationFn: async () => {
+      for (let i = 0; i < DEFAULT_ROOMS.length; i++) {
+        await apiRequest("POST", "/api/rooms", {
+          name: DEFAULT_ROOMS[i].name,
+          icon: DEFAULT_ROOMS[i].icon,
+          sortOrder: i,
+        });
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/rooms"] });
+      toast({ title: "Default rooms added!" });
+    },
+  });
+
   const handlePreset = (preset: { primary: number; accent: number }) => {
     setPrimaryHue(preset.primary);
     setAccentHue(preset.accent);
     saveSettingsMutation.mutate({ primaryHue: preset.primary, accentHue: preset.accent });
   };
 
-  if (partnersLoading) {
+  if (partnersLoading || roomsLoading) {
     return (
       <div className="p-6 space-y-6 max-w-3xl mx-auto">
         <Skeleton className="h-8 w-48" />
@@ -224,6 +383,110 @@ export default function SettingsPage() {
               {(partners?.length || 0) >= 2
                 ? "Maximum 2 partners"
                 : "Add Partner"}
+            </Button>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader className="flex flex-row items-center gap-2">
+          <Home className="w-5 h-5 text-primary" />
+          <CardTitle className="text-lg">Rooms</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <p className="text-sm text-muted-foreground">
+            Organize your chores by room. Chores will be grouped by room on the dashboard.
+          </p>
+
+          {(!roomsList || roomsList.length === 0) && (
+            <div className="text-center py-4">
+              <Home className="w-8 h-8 mx-auto text-muted-foreground mb-2" />
+              <p className="text-sm text-muted-foreground mb-3">
+                No rooms yet. Start with the defaults or add your own.
+              </p>
+              <Button
+                variant="outline"
+                onClick={() => addDefaultRoomsMutation.mutate()}
+                disabled={addDefaultRoomsMutation.isPending}
+                data-testid="button-add-default-rooms"
+              >
+                <Plus className="w-4 h-4 mr-2" />
+                {addDefaultRoomsMutation.isPending ? "Adding..." : "Add Default Rooms"}
+              </Button>
+            </div>
+          )}
+
+          {roomsList && roomsList.length > 0 && (
+            <div className="space-y-1 divide-y">
+              {roomsList.map((room) => (
+                <RoomEditor
+                  key={room.id}
+                  room={room}
+                  onSave={(data) => updateRoomMutation.mutate({ id: room.id, ...data })}
+                  onDelete={() => deleteRoomMutation.mutate(room.id)}
+                />
+              ))}
+            </div>
+          )}
+
+          {showNewRoom ? (
+            <div className="space-y-3 pt-2">
+              <div className="flex items-center gap-2">
+                <Input
+                  value={newRoomName}
+                  onChange={(e) => setNewRoomName(e.target.value)}
+                  placeholder="Room name"
+                  className="flex-1"
+                  data-testid="input-new-room-name"
+                />
+                <Select value={newRoomIcon} onValueChange={setNewRoomIcon}>
+                  <SelectTrigger className="w-[140px]" data-testid="select-new-room-icon">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {ROOM_ICONS.map((ic) => (
+                      <SelectItem key={ic} value={ic} className="capitalize">
+                        {ic.replace(/-/g, " ")}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="flex items-center gap-2">
+                <Button
+                  size="sm"
+                  onClick={() => {
+                    if (newRoomName.trim()) {
+                      createRoomMutation.mutate({ name: newRoomName.trim(), icon: newRoomIcon });
+                    }
+                  }}
+                  disabled={!newRoomName.trim() || createRoomMutation.isPending}
+                  data-testid="button-save-new-room"
+                >
+                  <Save className="w-3.5 h-3.5 mr-1" />
+                  {createRoomMutation.isPending ? "Adding..." : "Add Room"}
+                </Button>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => {
+                    setShowNewRoom(false);
+                    setNewRoomName("");
+                    setNewRoomIcon("home");
+                  }}
+                >
+                  Cancel
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <Button
+              variant="outline"
+              onClick={() => setShowNewRoom(true)}
+              data-testid="button-add-room"
+            >
+              <Plus className="w-4 h-4 mr-2" />
+              Add Room
             </Button>
           )}
         </CardContent>

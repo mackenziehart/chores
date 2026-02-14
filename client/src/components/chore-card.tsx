@@ -1,9 +1,9 @@
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { CheckCircle2, Circle, Calendar, RotateCcw, Flag } from "lucide-react";
+import { CheckCircle2, Circle, Calendar, RotateCcw, Flag, Home } from "lucide-react";
 import { format, isPast, isToday, isTomorrow } from "date-fns";
-import type { Chore, Partner } from "@shared/schema";
+import type { Chore, Partner, Room } from "@shared/schema";
 import { useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -50,11 +50,12 @@ function DueDateBadge({ date }: { date: Date }) {
 interface ChoreCardProps {
   chore: Chore;
   partner?: Partner | undefined;
+  room?: Room | undefined;
   variant?: "default" | "overdue";
   onEdit?: (chore: Chore) => void;
 }
 
-export function ChoreCard({ chore, partner, variant = "default", onEdit }: ChoreCardProps) {
+export function ChoreCard({ chore, partner, room, variant = "default", onEdit }: ChoreCardProps) {
   const { toast } = useToast();
 
   const toggleMutation = useMutation({
@@ -123,6 +124,13 @@ export function ChoreCard({ chore, partner, variant = "default", onEdit }: Chore
               <Badge variant="outline" className="text-xs capitalize">
                 {chore.category}
               </Badge>
+
+              {room && (
+                <Badge variant="secondary" className="text-xs">
+                  <Home className="w-3 h-3 mr-1" />
+                  {room.name}
+                </Badge>
+              )}
 
               {chore.dueDate && <DueDateBadge date={new Date(chore.dueDate)} />}
 
