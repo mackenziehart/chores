@@ -61,6 +61,13 @@ export const insertSettingsSchema = createInsertSchema(settings).omit({ id: true
 export type InsertSettings = z.infer<typeof insertSettingsSchema>;
 export type Settings = typeof settings.$inferSelect;
 
+export const remindersSent = pgTable("reminders_sent", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  choreId: varchar("chore_id").notNull(),
+  sentAt: timestamp("sent_at").notNull().default(sql`now()`),
+  sentDate: text("sent_date").notNull(),
+});
+
 export const CATEGORIES = [
   "general",
   "cleaning",

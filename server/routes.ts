@@ -2,6 +2,7 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { insertChoreSchema, insertPartnerSchema } from "@shared/schema";
+import { checkAndSendReminders } from "./email";
 
 export async function registerRoutes(
   httpServer: Server,
@@ -90,6 +91,17 @@ export async function registerRoutes(
     const s = await storage.updateSettings(req.body);
     res.json(s);
   });
+
+  // Email reminders - manual trigger
+  app.post("/api/reminders/send", async (_req, res) => {
+    await checkAndSendReminders();
+    res.json({ success: true, message: "Reminder check completed" });
+  });
+
+  // Schedule daily reminder check (runs every hour to catch upcoming chores)
+  setInterval(() => {
+    checkAndSendReminders().catch(console.error);
+  }, 60 * 60 * 1000);
 
   return httpServer;
 }
