@@ -31,6 +31,7 @@ import { Calendar as CalendarIcon, Trash2 } from "lucide-react";
 import { format } from "date-fns";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
+import { fetchPartners } from "@/lib/partnersLocalStorage";
 import { useToast } from "@/hooks/use-toast";
 import { CATEGORIES, PRIORITIES, RECURRENCES } from "@shared/schema";
 import type { Chore, Partner, Room } from "@shared/schema";
@@ -58,7 +59,10 @@ interface ChoreFormDialogProps {
 
 export function ChoreFormDialog({ open, onOpenChange, editChore }: ChoreFormDialogProps) {
   const { toast } = useToast();
-  const { data: partners } = useQuery<Partner[]>({ queryKey: ["/api/partners"] });
+  const { data: partners } = useQuery<Partner[]>({
+    queryKey: ["/api/partners"],
+    queryFn: fetchPartners,
+  });
   const { data: roomsList } = useQuery<Room[]>({ queryKey: ["/api/rooms"] });
 
   const form = useForm<ChoreFormValues>({

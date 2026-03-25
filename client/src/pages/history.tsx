@@ -4,6 +4,7 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { CheckCircle2, Clock, History as HistoryIcon } from "lucide-react";
 import type { ChoreHistory, Partner } from "@shared/schema";
+import { fetchPartners } from "@/lib/partnersLocalStorage";
 import { format, isToday, isYesterday, startOfDay } from "date-fns";
 
 function groupByDate(items: ChoreHistory[]) {
@@ -31,6 +32,7 @@ export default function HistoryPage() {
 
   const { data: partners } = useQuery<Partner[]>({
     queryKey: ["/api/partners"],
+    queryFn: fetchPartners,
   });
 
   const getPartner = (id: string | null) => partners?.find((p) => p.id === id);

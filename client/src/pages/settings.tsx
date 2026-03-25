@@ -16,6 +16,11 @@ import {
 } from "@/components/ui/select";
 import { Palette, Users, Mail, Trash2, Plus, Save, Home, GripVertical } from "lucide-react";
 import { apiRequest, queryClient } from "@/lib/queryClient";
+import {
+  fetchPartners,
+  loadPartnersFromLocalStorage,
+  savePartnersToLocalStorage,
+} from "@/lib/partnersLocalStorage";
 import { useToast } from "@/hooks/use-toast";
 import { useTheme } from "@/lib/theme";
 import { DEFAULT_ROOMS, ROOM_ICONS } from "@shared/schema";
@@ -225,40 +230,109 @@ export default function SettingsPage() {
 
   const { data: partners, isLoading: partnersLoading } = useQuery<Partner[]>({
     queryKey: ["/api/partners"],
+    queryFn: fetchPartners,
   });
 
   const { data: roomsList, isLoading: roomsLoading } = useQuery<Room[]>({
     queryKey: ["/api/rooms"],
   });
 
+  const mergePartnerIntoCache = (partner: Partner) => {
+    queryClient.setQueryData<Partner[]>(["/api/partners"], (old) => {
+      const prev = old ?? loadPartnersFromLocalStorage() ?? [];
+      const idx = prev.findIndex((p) => p.id === partner.id);
+      let next: Partner[];
+      if (idx >= 0) {
+        next = [...prev];
+        next[idx] = partner;
+      } else {
+        next = [...prev, partner];
+      }
+      savePartnersToLocalStorage(next);
+      return next;
+    });
+  };
+
   const createPartnerMutation = useMutation({
     mutationFn: async (data: { name: string; email: string; avatarColor: string }) => {
-      await apiRequest("POST", "/api/partners", data);
+      try {
+        const res = await apiRequest("POST", "/api/partners", data);
+        return (await res.json()) as Partner;
+      } catch {
+        return {
+          id: crypto.randomUUID(),
+          name: data.name.trim(),
+          email: data.email.trim() || null,
+          avatarColor: data.avatarColor,
+        } satisfies Partner;
+      }
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/partners"] });
+    onSuccess: (partner) => {
+      mergePartnerIntoCache(partner);
       toast({ title: "Partner added!" });
       setShowNewPartner(false);
+      queryClient.invalidateQueries({ queryKey: ["/api/partners"] });
+    },
+    onError: () => {
+      toast({ title: "Could not save partner", variant: "destructive" });
     },
   });
 
   const updatePartnerMutation = useMutation({
-    mutationFn: async ({ id, ...data }: { id: string; name: string; email: string; avatarColor: string }) => {
-      await apiRequest("PATCH", `/api/partners/${id}`, data);
+    mutationFn: async ({
+      id,
+      ...data
+    }: {
+      id: string;
+      name: string;
+      email: string;
+      avatarColor: string;
+    }) => {
+      try {
+        const res = await apiRequest("PATCH", `/api/partners/${id}`, data);
+        return (await res.json()) as Partner;
+      } catch {
+        const prev =
+          queryClient.getQueryData<Partner[]>(["/api/partners"]) ??
+          loadPartnersFromLocalStorage() ??
+          [];
+        const existing = prev.find((p) => p.id === id);
+        if (!existing) throw new Error("Partner not found");
+        return {
+          ...existing,
+          name: data.name.trim(),
+          email: data.email.trim() || null,
+          avatarColor: data.avatarColor,
+        } satisfies Partner;
+      }
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/partners"] });
+    onSuccess: (partner) => {
+      mergePartnerIntoCache(partner);
       toast({ title: "Partner updated!" });
+      queryClient.invalidateQueries({ queryKey: ["/api/partners"] });
+    },
+    onError: () => {
+      toast({ title: "Could not save partner", variant: "destructive" });
     },
   });
 
   const deletePartnerMutation = useMutation({
     mutationFn: async (id: string) => {
-      await apiRequest("DELETE", `/api/partners/${id}`);
+      try {
+        await apiRequest("DELETE", `/api/partners/${id}`);
+      } catch {
+        // Still remove from local cache when offline / server unavailable
+      }
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/partners"] });
+    onSuccess: (_, id) => {
+      queryClient.setQueryData<Partner[]>(["/api/partners"], (old) => {
+        const prev = old ?? loadPartnersFromLocalStorage() ?? [];
+        const next = prev.filter((p) => p.id !== id);
+        savePartnersToLocalStorage(next);
+        return next;
+      });
       toast({ title: "Partner removed" });
+      queryClient.invalidateQueries({ queryKey: ["/api/partners"] });
     },
   });
 

@@ -11,6 +11,7 @@ import {
 import { CheckCircle2, Clock, AlertTriangle, ListChecks, Plus, ArrowRight, ChevronDown, ChevronRight, Home } from "lucide-react";
 import { Link } from "wouter";
 import type { Chore, Partner, Room } from "@shared/schema";
+import { fetchPartners } from "@/lib/partnersLocalStorage";
 import { isPast, isToday } from "date-fns";
 import { ChoreCard } from "@/components/chore-card";
 
@@ -109,6 +110,7 @@ export default function Dashboard() {
 
   const { data: partners, isLoading: partnersLoading } = useQuery<Partner[]>({
     queryKey: ["/api/partners"],
+    queryFn: fetchPartners,
   });
 
   const { data: roomsList, isLoading: roomsLoading } = useQuery<Room[]>({
