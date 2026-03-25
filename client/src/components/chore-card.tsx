@@ -3,9 +3,16 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { CheckCircle2, Circle, Calendar, RotateCcw, Flag, Home } from "lucide-react";
 import { format, isPast, isToday, isTomorrow } from "date-fns";
-import type { Chore, Partner, Room } from "@shared/schema";
+import type { Chore, ChoreHistory, Partner, Room } from "@shared/schema";
 import { useMutation } from "@tanstack/react-query";
-import { apiRequest, queryClient } from "@/lib/queryClient";
+import { queryClient } from "@/lib/queryClient";
+import {
+  loadChoresFromLocalStorage,
+  loadHistoryFromLocalStorage,
+  saveChoresToLocalStorage,
+  saveHistoryToLocalStorage,
+  toggleChoreLocal,
+} from "@/lib/choresLocalStorage";
 import { useToast } from "@/hooks/use-toast";
 import { CATEGORIES } from "@shared/schema";
 
@@ -60,11 +67,21 @@ export function ChoreCard({ chore, partner, room, variant = "default", onEdit }:
 
   const toggleMutation = useMutation({
     mutationFn: async () => {
-      await apiRequest("PATCH", `/api/chores/${chore.id}/toggle`);
+      const chores =
+        queryClient.getQueryData<Chore[]>(["/api/chores"]) ??
+        loadChoresFromLocalStorage() ??
+        [];
+      const history =
+        queryClient.getQueryData<ChoreHistory[]>(["/api/history"]) ??
+        loadHistoryFromLocalStorage() ??
+        [];
+      return toggleChoreLocal(chores, history, chore.id);
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/chores"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/history"] });
+    onSuccess: ({ chores, history }) => {
+      saveChoresToLocalStorage(chores);
+      saveHistoryToLocalStorage(history);
+      queryClient.setQueryData(["/api/chores"], chores);
+      queryClient.setQueryData(["/api/history"], history);
       toast({
         title: chore.completed ? "Chore reopened" : "Chore completed!",
       });

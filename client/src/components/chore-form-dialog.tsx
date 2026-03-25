@@ -30,7 +30,16 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Calendar as CalendarIcon, Trash2 } from "lucide-react";
 import { format } from "date-fns";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { apiRequest, queryClient } from "@/lib/queryClient";
+import { queryClient } from "@/lib/queryClient";
+import {
+  appendChore,
+  createChoreRecord,
+  loadChoresFromLocalStorage,
+  mergeChoreUpdate,
+  removeChore,
+  replaceChore,
+  saveChoresToLocalStorage,
+} from "@/lib/choresLocalStorage";
 import { fetchPartners } from "@/lib/partnersLocalStorage";
 import { useToast } from "@/hooks/use-toast";
 import { CATEGORIES, PRIORITIES, RECURRENCES } from "@shared/schema";
@@ -96,52 +105,66 @@ export function ChoreFormDialog({ open, onOpenChange, editChore }: ChoreFormDial
   const createMutation = useMutation({
     mutationFn: async (values: ChoreFormValues) => {
       const body = {
-        ...values,
+        title: values.title,
+        description: values.description,
         dueDate: values.dueDate ? values.dueDate.toISOString() : null,
         assigneeId: values.assigneeId || null,
         recurrence: values.recurrence || null,
+        category: values.category,
+        priority: values.priority,
         roomId: values.roomId || null,
       };
-      await apiRequest("POST", "/api/chores", body);
+      return createChoreRecord(body);
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/chores"] });
+    onSuccess: (newChore) => {
+      queryClient.setQueryData<Chore[]>(["/api/chores"], (old) => {
+        const prev = old ?? loadChoresFromLocalStorage() ?? [];
+        const next = appendChore(prev, newChore);
+        saveChoresToLocalStorage(next);
+        return next;
+      });
       toast({ title: "Chore created!" });
       form.reset();
       onOpenChange(false);
-    },
-    onError: (err: Error) => {
-      toast({ title: "Error", description: err.message, variant: "destructive" });
     },
   });
 
   const updateMutation = useMutation({
     mutationFn: async (values: ChoreFormValues) => {
       const body = {
-        ...values,
+        title: values.title,
+        description: values.description,
         dueDate: values.dueDate ? values.dueDate.toISOString() : null,
         assigneeId: values.assigneeId || null,
         recurrence: values.recurrence || null,
+        category: values.category,
+        priority: values.priority,
         roomId: values.roomId || null,
+        completed: values.completed,
       };
-      await apiRequest("PATCH", `/api/chores/${editChore!.id}`, body);
+      return mergeChoreUpdate(editChore!, body);
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/chores"] });
+    onSuccess: (updated) => {
+      queryClient.setQueryData<Chore[]>(["/api/chores"], (old) => {
+        const prev = old ?? loadChoresFromLocalStorage() ?? [];
+        const next = replaceChore(prev, updated.id, updated);
+        saveChoresToLocalStorage(next);
+        return next;
+      });
       toast({ title: "Chore updated!" });
       onOpenChange(false);
-    },
-    onError: (err: Error) => {
-      toast({ title: "Error", description: err.message, variant: "destructive" });
     },
   });
 
   const deleteMutation = useMutation({
-    mutationFn: async () => {
-      await apiRequest("DELETE", `/api/chores/${editChore!.id}`);
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/chores"] });
+    mutationFn: async () => editChore!.id,
+    onSuccess: (id) => {
+      queryClient.setQueryData<Chore[]>(["/api/chores"], (old) => {
+        const prev = old ?? loadChoresFromLocalStorage() ?? [];
+        const next = removeChore(prev, id);
+        saveChoresToLocalStorage(next);
+        return next;
+      });
       toast({ title: "Chore deleted" });
       onOpenChange(false);
     },

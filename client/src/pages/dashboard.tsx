@@ -12,6 +12,7 @@ import { CheckCircle2, Clock, AlertTriangle, ListChecks, Plus, ArrowRight, Chevr
 import { Link } from "wouter";
 import type { Chore, Partner, Room } from "@shared/schema";
 import { fetchPartners } from "@/lib/partnersLocalStorage";
+import { fetchChores } from "@/lib/choresLocalStorage";
 import { isPast, isToday } from "date-fns";
 import { ChoreCard } from "@/components/chore-card";
 
@@ -106,6 +107,7 @@ function RoomSection({
 export default function Dashboard() {
   const { data: chores, isLoading: choresLoading } = useQuery<Chore[]>({
     queryKey: ["/api/chores"],
+    queryFn: fetchChores,
   });
 
   const { data: partners, isLoading: partnersLoading } = useQuery<Partner[]>({

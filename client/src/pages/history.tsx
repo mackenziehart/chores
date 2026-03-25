@@ -5,6 +5,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { CheckCircle2, Clock, History as HistoryIcon } from "lucide-react";
 import type { ChoreHistory, Partner } from "@shared/schema";
 import { fetchPartners } from "@/lib/partnersLocalStorage";
+import { fetchChoreHistory } from "@/lib/choresLocalStorage";
 import { format, isToday, isYesterday, startOfDay } from "date-fns";
 
 function groupByDate(items: ChoreHistory[]) {
@@ -28,6 +29,7 @@ function formatDateLabel(dateStr: string) {
 export default function HistoryPage() {
   const { data: history, isLoading: historyLoading } = useQuery<ChoreHistory[]>({
     queryKey: ["/api/history"],
+    queryFn: fetchChoreHistory,
   });
 
   const { data: partners } = useQuery<Partner[]>({

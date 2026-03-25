@@ -17,6 +17,7 @@ import { Plus, Search, ListChecks, Filter, CalendarDays } from "lucide-react";
 import { format, isToday, isTomorrow, isPast, startOfDay, parseISO } from "date-fns";
 import type { Chore, Partner, Room } from "@shared/schema";
 import { fetchPartners } from "@/lib/partnersLocalStorage";
+import { fetchChores } from "@/lib/choresLocalStorage";
 import { CATEGORIES } from "@shared/schema";
 import { ChoreCard } from "@/components/chore-card";
 import { ChoreFormDialog } from "@/components/chore-form-dialog";
@@ -30,6 +31,7 @@ export default function ChoresPage() {
 
   const { data: chores, isLoading } = useQuery<Chore[]>({
     queryKey: ["/api/chores"],
+    queryFn: fetchChores,
   });
 
   const { data: partners } = useQuery<Partner[]>({
